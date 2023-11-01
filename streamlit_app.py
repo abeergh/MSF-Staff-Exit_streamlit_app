@@ -20,7 +20,7 @@ if "data" not in st.session_state:
 with st.sidebar:
     st.image("logo.png", use_column_width=True)
     selected_tab = option_menu("Main Menu", ['Home', 'Upload Data', 'Statistical Analysis', 'Modeling', 'Predict Staff Exit'], 
-        icons=['house', 'upload', 'kanban', 'sliders', 'predict'], menu_icon="cast", default_index=1)
+        icons=['house', 'upload', 'kanban', 'sliders', 'person'], menu_icon="cast", default_index=4)
     selected_tab
 
 if selected_tab == "Home":
@@ -818,13 +818,10 @@ if selected_tab == "Predict Staff Exit":
             #numerical_data = [[assignment_length_months,assignments_count]]
             return user_input
 
-        # Title of the app
-        st.markdown('<p class = "big-title">MSF IMS Turnover Prediction APP - Who is leaving?</p>', unsafe_allow_html=True)
-
         # Get user inputs
         user_input  = get_user_inputs()
         # Create two columns
-        col1, col2 = st.columns([2, 1])
+        col1, col2 = st.columns(2)
         # Initialize prediction and image_path variables
         prediction = ""
         image_path = ""
