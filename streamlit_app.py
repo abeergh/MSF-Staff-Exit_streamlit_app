@@ -231,17 +231,17 @@ if selected_tab == "Modeling":
         }
         metrics_df = pd.DataFrame(metrics_data)
         # Create a layout with two columns
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1,2]   )
 
         with col1:
-            st.subheader("Classification Metrics:")
+            st.markdown("Evaluation Metrics:")
             st.markdown(
                 metrics_df.to_html(index=False, escape=False),
                 unsafe_allow_html=True
             )
         with col2:
             # Display the confusion matrix as a heatmap
-            st.subheader("Confusion Matrix Heatmap")
+            st.markdown("<div style='text-align: center;'>Confusion Matrix Heatmap</div>", unsafe_allow_html=True)            
             plt.figure(figsize=(4, 2))
             sns.heatmap(confusion, annot=True, cmap="Blues", fmt="d", xticklabels=["Predicted Retention", "Predicted Exit"], yticklabels=["Actual Retention", "Actual Exit"])
             st.pyplot(plt)   
