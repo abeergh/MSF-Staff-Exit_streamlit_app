@@ -12,6 +12,7 @@ from streamlit_option_menu import option_menu
 from streamlit_option_menu import option_menu
 from scipy.stats import chi2_contingency
 from sklearn.feature_selection import chi2
+from sklearn.metrics import mean_squared_error, roc_curve, roc_auc_score
 
 # Initialize a session state variable to store the data
 if "data" not in st.session_state:
@@ -84,8 +85,8 @@ if selected_tab == "Statistical Analysis":
         st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
 
         # Check association between categorical variables and turnover
-        categorical_vars = ['gender', 'age_group', 'job_family', 'employee_continent', 'assignment_region',
-                            'contract_type_category', 'function_name', 'job_category_level']
+        categorical_vars = ['gender', 'age_group', 'job_family', 'employee_continent',
+                            'contract_type_category', 'function_name', 'job_category_level','assignment_country_name']
 
         var_names = []
         chi2_values = []
@@ -123,7 +124,7 @@ if selected_tab == "Statistical Analysis":
         'Metric': ['T-test', 'p-value'],
         'Value': [t_stat, p_value]}
 
-        # Perform T-tests and create boxplots
+        # Perform T-tests and create scatter plots
         t_stat_duration, p_value_duration = stats.ttest_ind(duration_turnover_yes, duration_turnover_no)
         t_stat_assignmentcount, p_value_assignmentcount = stats.ttest_ind(assignmentcount_turnover_yes, assignmentcount_turnover_no)
 
@@ -143,47 +144,40 @@ if selected_tab == "Statistical Analysis":
         st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
 
         # Create a section for boxplots
-        st.markdown("### Boxplots")
+        st.markdown("### Scatter plots")
 
         col1, col2= st.columns(2)
-        def create_duration_boxplot(data_yes, data_no, title):
+
+        def create_duration_scatterplot(data_yes, data_no, title):
             fig, ax = plt.subplots()
-            # Customize boxplot appearance
-            boxprops = dict(linewidth=2, color='blue')
-            whiskerprops = dict(linewidth=2, color='blue')
-            capprops = dict(linewidth=2, color='blue')
-            flierprops = dict(marker='o', markerfacecolor='red', markersize=8, linestyle='none')
-            medianprops = dict(linewidth=2, color='green')
-            ax.boxplot([data_yes, data_no], labels=['Exit: Yes', 'Exit: No'], boxprops=boxprops, whiskerprops=whiskerprops,
-                        capprops=capprops, flierprops=flierprops, medianprops=medianprops)
-            ax.set_xlabel('Staff Exit')
+            ax.scatter(range(len(data_no)), data_no, label='Exit: No', alpha=0.5, color='blue')
+            ax.scatter(range(len(data_yes)), data_yes, label='Exit: Yes', alpha=0.5, color='red')
+            ax.set_xlabel('Individuals')
             ax.set_ylabel('Assignment Duration')
             ax.set_title(title)
+            ax.legend()
             return fig
 
-        def create_assignmentcount_boxplot(data_yes, data_no, title):
+        def create_assignmentcount_scatterplot(data_yes, data_no, title):
             fig, ax = plt.subplots()
-            # Customize boxplot appearance
-            boxprops = dict(linewidth=2, color='blue')
-            whiskerprops = dict(linewidth=2, color='blue')
-            capprops = dict(linewidth=2, color='blue')
-            flierprops = dict(marker='o', markerfacecolor='red', markersize=8, linestyle='none')
-            medianprops = dict(linewidth=2, color='green')
-            ax.boxplot([data_yes, data_no], labels=['Exit: Yes', 'Exit: No'], boxprops=boxprops, whiskerprops=whiskerprops,
-                        capprops=capprops, flierprops=flierprops, medianprops=medianprops)
-            ax.set_xlabel('Staff Exit')
+            ax.scatter(range(len(data_no)), data_no, label='Exit: No', alpha=0.5, color='blue')
+            ax.scatter(range(len(data_yes)), data_yes, label='Exit: Yes', alpha=0.5, color='red')
+            ax.set_xlabel('Individuals')
             ax.set_ylabel('# of Assignments')
             ax.set_title(title)
+            ax.legend()
             return fig
 
+        col1, col2 = st.columns(2)
+
         with col1:
-            st.markdown("#### Assignment Duration")
-            fig1 = create_duration_boxplot(duration_turnover_yes, duration_turnover_no, 'Assignment Duration')
+            st.markdown("###### Assignment Duration vs Staff Exit")
+            fig1 = create_duration_scatterplot(duration_turnover_yes, duration_turnover_no, 'Assignment Duration')
             st.pyplot(fig1)
 
         with col2:
-            st.markdown("#### Number of Assignments")
-            fig2 = create_assignmentcount_boxplot(assignmentcount_turnover_yes, assignmentcount_turnover_no, '# of Assignments')
+            st.markdown("###### Number of Assignments vs Staff Exit")
+            fig2 = create_assignmentcount_scatterplot(assignmentcount_turnover_yes, assignmentcount_turnover_no, '# of Assignments')
             st.pyplot(fig2)
 
     else:
@@ -196,15 +190,12 @@ if selected_tab == "Modeling":
     if st.session_state.data is not None:
         data = st.session_state.data
 
-        X = data[['gender', 'age_group', 'job_family', 'employee_continent', 'assignment_region',
-                            'contract_type_category', 'function_name', 'job_category_level','assignment_length_months','assignments_count']]
+        X = data[['gender', 'age_group', 'job_family', 'employee_continent', 
+                            'contract_type_category', 'function_name', 'job_category_level','assignment_country_name','assignment_length_months','assignments_count']]
         y = data['turnover']
         
-        X = pd.get_dummies(X, columns=['gender', 'age_group', 'job_family', 'employee_continent', 'assignment_region',
+        X = pd.get_dummies(X, columns=['gender', 'age_group', 'job_family', 'employee_continent', 'assignment_country_name',
                     'contract_type_category', 'function_name', 'job_category_level'])
-        # Identify and drop columns associated with the "unknown" category
-        unknown_columns = [col for col in X.columns if col.endswith('_Unknown')]
-        X = X.drop(unknown_columns, axis=1)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         # Create a Logistic Regression model
         logistic_model = LogisticRegression()
@@ -243,8 +234,28 @@ if selected_tab == "Modeling":
             # Display the confusion matrix as a heatmap
             st.markdown("<div style='text-align: center;'>Confusion Matrix Heatmap</div>", unsafe_allow_html=True)            
             plt.figure(figsize=(4, 2))
-            sns.heatmap(confusion, annot=True, cmap="Blues", fmt="d", xticklabels=["Predicted Retention", "Predicted Exit"], yticklabels=["Actual Retention", "Actual Exit"])
-            st.pyplot(plt)   
+            sns.heatmap(confusion, annot=True, cmap="Blues", fmt="d", xticklabels=["Actual Exit", "Actual Retention"], yticklabels=["Predicted Exit", "Predicted Retention"])
+            st.pyplot(plt) 
+        
+        # Get predicted probabilities for the positive class
+        y_pred_prob = logistic_model.predict_proba(X_test)[:, 1]
+
+        # Calculate ROC curve
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob)
+       
+        # Calculate AUC
+        auc = roc_auc_score(y_test, y_pred_prob)
+        st.write(f"AUC (Area Under the Curve): {auc:.2f}")
+
+        # Plot ROC curve
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(fpr, tpr, label=f'ROC Curve (AUC = {auc:.2f})')
+        ax.plot([0, 1], [0, 1], 'k--')  # Diagonal line for random guessing
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_title('Receiver Operating Characteristic (ROC) Curve')
+        ax.legend()
+        st.pyplot(fig)
     else:
         st.warning("Upload data in the 'Upload Data' tab first.")
 
@@ -494,6 +505,131 @@ if selected_tab == "Predict Staff Exit":
                 'workshop supervisor',
                 'x-ray supervisor',
             ]
+            assignment_countries = [
+                'Afghanistan',
+                'American Samoa',
+                'Angola',
+                'Argentina',
+                'Armenia',
+                'Australia',
+                'Austria',
+                'Azerbaijan',
+                'Bangladesh',
+                'Belgium',
+                'Benin',
+                'Bolivia',
+                'Brazil',
+                'Burkina Faso',
+                'Burundi',
+                'Cambodia',
+                'Cameroon',
+                'Canada',
+                'Central African Republic',
+                'Chad',
+                'China',
+                'Colombia',
+                'Congo',
+                'Costa Rica',
+                'Czech Republic',
+                'Democratic Republic of  Congo',
+                'Denmark',
+                'Dominica',
+                'Ecuador',
+                'Egypt',
+                'El Salvador',
+                'Eritrea',
+                'Eswatini',
+                'Ethiopia',
+                'France',
+                'Gabon',
+                'Georgia',
+                'Germany',
+                'Greece',
+                'Guatemala',
+                'Guinea',
+                'Guinea-Bissau',
+                'Haiti',
+                'Honduras',
+                'Hong Kong',
+                'Hungary',
+                'India',
+                'Indonesia',
+                'Iran',
+                'Iraq',
+                'Ireland',
+                'Italy',
+                'Ivory Coast',
+                'Japan',
+                'Jordan',
+                'Kenya',
+                'Kiribati',
+                'Kyrgyzstan',
+                'Lebanon',
+                'Liberia',
+                'Libya',
+                'Lithuania',
+                'Luxembourg',
+                'Madagascar',
+                'Malawi',
+                'Malaysia',
+                'Mali',
+                'Mauritania',
+                'Mediterranean sea rescue',
+                'Mexico',
+                'Moldova',
+                'Montenegro',
+                'Mozambique',
+                'Myanmar',
+                'Nauru',
+                'Nepal',
+                'Nicaragua',
+                'Niger',
+                'Nigeria',
+                'North Korea',
+                'Norway',
+                'Pakistan',
+                'Palestinian Territory',
+                'Papua New Guinea',
+                'Peru',
+                'Philippines',
+                'Poland',
+                'Portugal',
+                'Russia',
+                'Rwanda',
+                'Senegal',
+                'Serbia',
+                'Sierra Leone',
+                'Slovakia',
+                'Slovenia',
+                'Somalia',
+                'South Africa',
+                'South Korea',
+                'South Sudan',
+                'Spain',
+                'Sudan',
+                'Suriname',
+                'Sweden',
+                'Switzerland',
+                'Syria Arab Republic',
+                'Tajikistan',
+                'Tanzania',
+                'Thailand',
+                'The Netherlands',
+                'Togo',
+                'Tunisia',
+                'Turkey',
+                'Uganda',
+                'Ukraine',
+                'United Arab Emirates',
+                'United Kingdom',
+                'United States of America',
+                'Unknown',
+                'Uzbekistan',
+                'Venezuela (Bolivarian Republic)',
+                'Yemen',
+                'Zimbabwe',
+
+            ]
             # Create two columns for organizing variables
             col1, col2 = st.columns(2)
 
@@ -509,7 +645,7 @@ if selected_tab == "Predict Staff Exit":
 
             with col2:
                 st.markdown('<div class="input-column">', unsafe_allow_html=True)
-                assignment_region = 'assignment_region_' + st.selectbox('Assignment Region:', ['Middle Africa', 'Western Africa', 'Middle East', 'Asia', 'The Caribbean', 'Eastern Africa', 'Northern Africa', 'Europe', 'Southern Africa', 'Oceania', 'Central America', 'South America', 'Northern America'])
+                assignment_country= 'assignment_country_name_' + st.selectbox('Assignment Country:', assignment_countries)
                 contract_type_category = 'contract_type_category_' + st.selectbox('Contract Type:', ['Intermissioner', 'LTA12', 'LTA24', 'Vocationer', 'Emergency team', 'TANDEM', 'MALTA', 'Other special contracts'])
                 assignments_count = st.number_input("Number of Assignments")
                 assignment_length_months = st.number_input("Assignment Length (in months)")
@@ -517,7 +653,8 @@ if selected_tab == "Predict Staff Exit":
                 
             user_input_gender = pd.DataFrame({
                 'gender_Female': 0,
-                'gender_Male': 0
+                'gender_Male': 0,
+                'gender_Unknown': 0
                 }, index=[0])
             user_input_age_group = pd.DataFrame({
                 'age_group_16-24': 0,
@@ -527,12 +664,13 @@ if selected_tab == "Predict Staff Exit":
                 'age_group_55-64': 0,
                 'age_group_65-85': 0,
                 'age_group_unknown/outliers': 0
-            }, index=[0]    )
+            }, index=[0])
             user_input_job_family = pd.DataFrame({
                 'job_family_HR & FIN': 0,
                 'job_family_Logistics & Supply': 0,
                 'job_family_Medical & Paramedical': 0,
-                'job_family_Operations': 0
+                'job_family_Operations': 0,
+                'job_family_Unknown': 0
             }, index=[0])    
             user_input_employee_continent = pd.DataFrame({
                 'employee_continent_Africa': 0,
@@ -540,23 +678,133 @@ if selected_tab == "Predict Staff Exit":
                 'employee_continent_Australia & Oceania': 0,
                 'employee_continent_Europe': 0,
                 'employee_continent_North America': 0,
-                'employee_continent_South America': 0
+                'employee_continent_South America': 0,
+                'employee_continent_Unknown': 0
             }, index=[0])    
-            user_input_assignment_region = pd.DataFrame({
-                'assignment_region_Asia': 0,
-                'assignment_region_Central America': 0,
-                'assignment_region_Eastern Africa': 0,
-                'assignment_region_Europe': 0,
-                'assignment_region_Mediterranea': 0,
-                'assignment_region_Middle Africa': 0,
-                'assignment_region_Middle East': 0,
-                'assignment_region_Northern Africa': 0,
-                'assignment_region_Northern America': 0,
-                'assignment_region_Oceania': 0,
-                'assignment_region_South America': 0,
-                'assignment_region_Southern Africa': 0,
-                'assignment_region_The Caribbean': 0,
-                'assignment_region_Western Africa': 0  
+            user_input_assignment_country = pd.DataFrame({
+                'assignment_country_name_Afghanistan':0,
+                'assignment_country_name_American Samoa':0,
+                'assignment_country_name_Angola':0,
+                'assignment_country_name_Argentina':0,
+                'assignment_country_name_Armenia':0,
+                'assignment_country_name_Australia':0,
+                'assignment_country_name_Austria':0,
+                'assignment_country_name_Azerbaijan':0,
+                'assignment_country_name_Bangladesh':0,
+                'assignment_country_name_Belgium':0,
+                'assignment_country_name_Benin':0,
+                'assignment_country_name_Bolivia':0,
+                'assignment_country_name_Brazil':0,
+                'assignment_country_name_Burkina Faso':0,
+                'assignment_country_name_Burundi':0,
+                'assignment_country_name_Cambodia':0,
+                'assignment_country_name_Cameroon':0,
+                'assignment_country_name_Canada':0,
+                'assignment_country_name_Central African Republic':0,
+                'assignment_country_name_Chad':0,
+                'assignment_country_name_China':0,
+                'assignment_country_name_Colombia':0,
+                'assignment_country_name_Congo':0,
+                'assignment_country_name_Costa Rica':0,
+                'assignment_country_name_Czech Republic':0,
+                'assignment_country_name_Democratic Republic of  Congo':0,
+                'assignment_country_name_Denmark':0,
+                'assignment_country_name_Dominica':0,
+                'assignment_country_name_Ecuador':0,
+                'assignment_country_name_Egypt':0,
+                'assignment_country_name_El Salvador':0,
+                'assignment_country_name_Eritrea':0,
+                'assignment_country_name_Eswatini':0,
+                'assignment_country_name_Ethiopia':0,
+                'assignment_country_name_France':0,
+                'assignment_country_name_Gabon':0,
+                'assignment_country_name_Georgia':0,
+                'assignment_country_name_Germany':0,
+                'assignment_country_name_Greece':0,
+                'assignment_country_name_Guatemala':0,
+                'assignment_country_name_Guinea':0,
+                'assignment_country_name_Guinea-Bissau':0,
+                'assignment_country_name_Haiti':0,
+                'assignment_country_name_Honduras':0,
+                'assignment_country_name_Hong Kong':0,
+                'assignment_country_name_Hungary':0,
+                'assignment_country_name_India':0,
+                'assignment_country_name_Indonesia':0,
+                'assignment_country_name_Iran':0,
+                'assignment_country_name_Iraq':0,
+                'assignment_country_name_Ireland':0,
+                'assignment_country_name_Italy':0,
+                'assignment_country_name_Ivory Coast':0,
+                'assignment_country_name_Japan':0,
+                'assignment_country_name_Jordan':0,
+                'assignment_country_name_Kenya':0,
+                'assignment_country_name_Kiribati':0,
+                'assignment_country_name_Kyrgyzstan':0,
+                'assignment_country_name_Lebanon':0,
+                'assignment_country_name_Liberia':0,
+                'assignment_country_name_Libya':0,
+                'assignment_country_name_Lithuania':0,
+                'assignment_country_name_Luxembourg':0,
+                'assignment_country_name_Madagascar':0,
+                'assignment_country_name_Malawi':0,
+                'assignment_country_name_Malaysia':0,
+                'assignment_country_name_Mali':0,
+                'assignment_country_name_Mauritania':0,
+                'assignment_country_name_Mediterranean sea rescue':0,
+                'assignment_country_name_Mexico':0,
+                'assignment_country_name_Moldova':0,
+                'assignment_country_name_Montenegro':0,
+                'assignment_country_name_Mozambique':0,
+                'assignment_country_name_Myanmar':0,
+                'assignment_country_name_Nauru':0,
+                'assignment_country_name_Nepal':0,
+                'assignment_country_name_Nicaragua':0,
+                'assignment_country_name_Niger':0,
+                'assignment_country_name_Nigeria':0,
+                'assignment_country_name_North Korea':0,
+                'assignment_country_name_Norway':0,
+                'assignment_country_name_Pakistan':0,
+                'assignment_country_name_Palestinian Territory':0,
+                'assignment_country_name_Papua New Guinea':0,
+                'assignment_country_name_Peru':0,
+                'assignment_country_name_Philippines':0,
+                'assignment_country_name_Poland':0,
+                'assignment_country_name_Portugal':0,
+                'assignment_country_name_Russia':0,
+                'assignment_country_name_Rwanda':0,
+                'assignment_country_name_Senegal':0,
+                'assignment_country_name_Serbia':0,
+                'assignment_country_name_Sierra Leone':0,
+                'assignment_country_name_Slovakia':0,
+                'assignment_country_name_Slovenia':0,
+                'assignment_country_name_Somalia':0,
+                'assignment_country_name_South Africa':0,
+                'assignment_country_name_South Korea':0,
+                'assignment_country_name_South Sudan':0,
+                'assignment_country_name_Spain':0,
+                'assignment_country_name_Sudan':0,
+                'assignment_country_name_Suriname':0,
+                'assignment_country_name_Sweden':0,
+                'assignment_country_name_Switzerland':0,
+                'assignment_country_name_Syria Arab Republic':0,
+                'assignment_country_name_Tajikistan':0,
+                'assignment_country_name_Tanzania':0,
+                'assignment_country_name_Thailand':0,
+                'assignment_country_name_The Netherlands':0,
+                'assignment_country_name_Togo':0,
+                'assignment_country_name_Tunisia':0,
+                'assignment_country_name_Turkey':0,
+                'assignment_country_name_Uganda':0,
+                'assignment_country_name_Ukraine':0,
+                'assignment_country_name_United Arab Emirates':0,
+                'assignment_country_name_United Kingdom':0,
+                'assignment_country_name_United States of America':0,
+                'assignment_country_name_Unknown':0,
+                'assignment_country_name_Uzbekistan':0,
+                'assignment_country_name_Venezuela (Bolivarian Republic)':0,
+                'assignment_country_name_Yemen':0,
+                'assignment_country_name_Zimbabwe':0,
+
             }, index=[0])    
             user_input_contract_type_category = pd.DataFrame({
                 'contract_type_category_Emergency team': 0,
@@ -566,12 +814,13 @@ if selected_tab == "Predict Staff Exit":
                 'contract_type_category_MALTA': 0,
                 'contract_type_category_Other special contracts': 0,
                 'contract_type_category_TANDEM': 0,
-                'contract_type_category_Vocationer': 0
-                
+                'contract_type_category_Unknown': 0,
+                'contract_type_category_Vocationer': 0      
             }, index=[0])    
             user_input_function_name = pd.DataFrame({
                 'function_name_Head of Human Resources': 0,
                 'function_name_Head of Logistics': 0,
+                'function_name_Unknown': 0,
                 'function_name_accountant': 0,
                 'function_name_admin transit': 0,
                 'function_name_advocacy manager': 0,
@@ -784,11 +1033,12 @@ if selected_tab == "Predict Staff Exit":
                 }, index=[0])
 
             user_input_job_category_level = pd.DataFrame({
-            'job_category_level_Activity Managers': 0,
-            'job_category_level_Basic Skilled Positions': 0,   
-            'job_category_level_Coordinators': 0,
-            'job_category_level_Skilled Positions': 0,
-            'job_category_level_Supervisors & Specialists': 0
+                'job_category_level_Activity Managers': 0,
+                'job_category_level_Basic Skilled Positions': 0,   
+                'job_category_level_Coordinators': 0,
+                'job_category_level_Skilled Positions': 0,
+                'job_category_level_Supervisors & Specialists': 0,
+                'job_category_level_Unknown': 0
             }, index=[0])
             
             # Create user input DataFrames based on user selections
@@ -796,11 +1046,10 @@ if selected_tab == "Predict Staff Exit":
             user_input_age_group[age_group] = [1]  # Set the selected value to 1
             user_input_job_family[job_family] = [1]
             user_input_employee_continent[employee_continent] = [1]
-            user_input_assignment_region[assignment_region] = [1]
             user_input_contract_type_category[contract_type_category] = [1]
             user_input_function_name[function_name] = [1]
             user_input_job_category_level[job_category_level] = [1]
-            
+            user_input_assignment_country[assignment_country] = [1]
             # Create a DataFrame for numerical inputs
             user_input_numerical = pd.DataFrame({
                 'assignment_length_months': [assignment_length_months],
@@ -809,13 +1058,9 @@ if selected_tab == "Predict Staff Exit":
             # Concatenate user input DataFrames (categorical and numerical)
 
             user_input = pd.concat([user_input_numerical, user_input_gender, user_input_age_group, user_input_job_family,
-                                    user_input_employee_continent, user_input_assignment_region,
-                                    user_input_contract_type_category, user_input_function_name,
-                                    user_input_job_category_level], axis=1)    
+                                    user_input_employee_continent, user_input_contract_type_category, user_input_function_name,
+                                    user_input_job_category_level, user_input_assignment_country], axis=1)    
             
-            #categorical_data = [[gender, age_group, job_family, employee_continent, assignment_region,
-            #               contract_type_category, function_name, job_category_level]]
-            #numerical_data = [[assignment_length_months,assignments_count]]
             return user_input
 
         # Get user inputs
